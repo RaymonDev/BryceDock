@@ -41,6 +41,7 @@ iso/
 *.mkv
 *.webm
 *.gif
+!brycedock_demo.gif
 
 # Logs, temporary files, Python caches, and OS/IDE artifacts
 __pycache__/

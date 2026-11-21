@@ -31,6 +31,18 @@
 
 ---
 
+## Demo
+
+<div align="center">
+
+<img src="brycedock_demo.gif" alt="BryceDock live browser demo" width="720" />
+
+<sub><i>Launching BryceDock with Docker Compose, applying Materials &amp; Sky&amp;Fog presets, and raytracing live in the browser</i></sub>
+
+</div>
+
+---
+
 ## Platform Support
 
 | Platform | Architecture | Status | Notes |
