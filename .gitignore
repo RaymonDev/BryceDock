@@ -32,6 +32,7 @@ iso/
 *.png
 *.jpg
 *.jpeg
+!more_bryce_3d_renders_by_j0rnsha_dlxbngj-pre.jpg
 *.tif
 *.tiff
 *.avi
