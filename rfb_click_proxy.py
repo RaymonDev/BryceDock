@@ -155,9 +155,9 @@ async def client_to_server(reader, writer, tracker):
                 await fwd(bytes([t]) + await reader.readexactly(9))
             elif t == 4:      # KeyEvent
                 await fwd(bytes([t]) + await reader.readexactly(7))
-            elif t == 6:      # ClientCutText
+            elif t == 6:      # ClientCutText (negative signed length = ExtendedClipboard)
                 hdr = await reader.readexactly(7)
-                ln = struct.unpack("!I", hdr[3:7])[0]
+                ln = abs(struct.unpack("!i", hdr[3:7])[0])
                 await fwd(bytes([t]) + hdr + await reader.readexactly(ln))
             elif t == 150:    # EnableContinuousUpdates
                 await fwd(bytes([t]) + await reader.readexactly(9))
