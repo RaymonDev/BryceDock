@@ -48,7 +48,7 @@
 
 ### Prerequisites
 - **Docker** and **Docker Compose** installed on your machine.
-- Your own copy of **`Bryce3DCD.iso`** and a valid **Bryce 3D serial number**.
+- Your own [copy](https://archive.org/details/Bryce3DCD) of **`Bryce3DCD.iso`** and a valid Bryce 3D [serial number](https://ia903107.us.archive.org/29/items/bryce4/install.txt).
 
 <details>
 <summary>Need to install Docker first? Click here for Windows, macOS, and Linux steps</summary>
