@@ -1,0 +1,14 @@
+Bryce3DCD.iso
+*.iso
+*.mp4
+*.mkv
+*.webm
+*.mov
+*.avi
+.env
+projects/
+.git/
+__pycache__/
+*.pyc
+*.png
+*.log

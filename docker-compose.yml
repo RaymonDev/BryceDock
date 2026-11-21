@@ -1,0 +1,33 @@
+services:
+  brycedock:
+    build: .
+    image: brycedock:latest
+    container_name: brycedock
+    platform: linux/amd64
+    ports:
+      - "6080:6080"
+      # Optional: expose raw VNC for native VNC clients
+      # - "5900:5900"
+    environment:
+      - RESOLUTION=${RESOLUTION:-640x480}
+      # Optional: auto-fill first-run personalization via .env (never baked into image)
+      - BRYCE_NAME=${BRYCE_NAME:-Bryce User}
+      - BRYCE_ORG=${BRYCE_ORG:-Studio}
+      - BRYCE_SERIAL=${BRYCE_SERIAL:-}
+      # Optional: set a password for browser/VNC access
+      # - VNC_PASSWORD=changeme
+      # Optional: download Bryce3DCD.iso automatically if not mounted locally
+      # - BRYCE_ISO_URL=https://archive.org/download/.../Bryce3DCD.iso
+    volumes:
+      # Mount your local Bryce 3D CD ISO read-only (not baked into the image)
+      - ./Bryce3DCD.iso:/iso/Bryce3DCD.iso:ro
+      # Host folder for saving scenes (.br3) and exported renders (.bmp/.avi)
+      # Accessible inside Bryce 3D at E:\ or C:\Bryce3D\Projects
+      - ./projects:/workspace
+      # Persists extracted Bryce 3D install & Wine prefix across restarts
+      - bryce3d_data:/data
+    shm_size: "512m"
+    restart: unless-stopped
+
+volumes:
+  bryce3d_data:

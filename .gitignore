@@ -1,0 +1,55 @@
+# Secrets & local environment configuration (never commit serial numbers or passwords)
+.env
+.env.*
+!.env.example
+*.key
+*.pem
+passwd
+
+# Copyrighted CD images, disk images, and Windows/Bryce binaries
+Bryce3DCD.iso
+*.iso
+*.bin
+*.cue
+*.img
+*.nrg
+*.mdf
+*.mds
+*.exe
+*.EXE
+*.dll
+*.DLL
+*.cab
+MetaImage.dll
+
+# Local runtime data & user project outputs
+projects/
+data/
+wine/
+iso/
+*.br3
+*.bmp
+*.png
+*.jpg
+*.jpeg
+*.tif
+*.tiff
+*.avi
+*.mov
+*.mp4
+*.mkv
+*.webm
+*.gif
+
+# Logs, temporary files, Python caches, and OS/IDE artifacts
+__pycache__/
+*.pyc
+*.log
+*.tmp
+*.swp
+*~
+.DS_Store
+Thumbs.db
+desktop.ini
+.vscode/
+.idea/

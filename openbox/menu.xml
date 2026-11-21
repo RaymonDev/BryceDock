@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<openbox_menu xmlns="http://openbox.org/3.4/menu">
+  <menu id="root-menu" label="Bryce 3D">
+    <item label="Launch Bryce 3D">
+      <action name="Execute">
+        <command>/bin/bash -lc 'cd /data/bryce3d &amp;&amp; wine "C:\Bryce3D\Bryce 3D.exe"'</command>
+      </action>
+    </item>
+    <separator />
+    <item label="Wine Configuration (winecfg)">
+      <action name="Execute">
+        <command>winecfg</command>
+      </action>
+    </item>
+    <item label="Terminal">
+      <action name="Execute">
+        <command>xterm</command>
+      </action>
+    </item>
+    <separator />
+    <item label="Reconfigure Window Manager">
+      <action name="Reconfigure" />
+    </item>
+  </menu>
+</openbox_menu>
