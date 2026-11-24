@@ -5,8 +5,8 @@
 **Run classic MetaCreations Bryce 3D (1997) in any web browser via Docker, 32-bit Wine, and noVNC.**
 
 ![Docker](https://img.shields.io/badge/Docker-Compose-2496ED?logo=docker&logoColor=white)
-![Platforms](https://img.shields.io/badge/Platforms-Linux%20%7C%20Windows%20%7C%20macOS-4c1)
-![Runtime](https://img.shields.io/badge/Wine-32--bit%20(Win98)-722F37)
+![Platforms](https://img.shields.io/badge/Platforms-Linux%20%7C%20Windows%20%7C%20macOS%20(Intel%20%26%20Apple%20Silicon)-4c1)
+![Runtime](https://img.shields.io/badge/Wine-x86__64%20%7C%20ARM64%20(Hangover%20%2B%20FEX)-722F37)
 ![Display](https://img.shields.io/badge/GUI-noVNC%20(Browser)-1f2937)
 
 <br />
@@ -25,7 +25,8 @@
 
 - **Browser-based GUI:** Open `http://localhost:6080` on Linux, Windows, or macOS — no native VNC viewer or display server needed.
 - **No 16-bit installer issues:** Compiles [`unshieldv3`](https://github.com/wfr/unshieldv3) natively on Linux to unpack Bryce 3D's InstallShield 3 `data.1` archive directly from `Bryce3DCD.iso`.
-- **Reliable preset libraries:** Includes a lightweight server-side RFB click proxy (`rfb_click_proxy.py`) so Bryce 3D's **Objects**, **Materials**, and **Sky&Fog** preset popups stay open on normal mouse clicks and laptop touchpad taps.
+- **Reliable preset libraries & shortcuts:** Includes a lightweight server-side RFB proxy (`rfb_click_proxy.py`) so Bryce 3D's **Objects**, **Materials**, and **Sky&Fog** preset popups stay open on normal mouse clicks/touchpad taps, and keyboard shortcuts like **`Ctrl+Z`** (plus **`⌘Z`** on macOS and non-Latin keyboard layouts) work reliably even after hovering the auto-hide menu bar.
+- **Native ARM64 speed on Apple Silicon:** Multi-arch Docker build automatically uses **Hangover Wine (WoW64) + FEX** (`FEX_X87REDUCEDPRECISION=1`) on `arm64` instead of slow QEMU emulation — delivering ~15× faster raytrace renders on M1–M4 Macs.
 - **Direct file exchange:** Your saved scenes and renders appear directly in the `projects/` folder inside this repository (`BryceDock/projects/`).
 - **Clean, redistributable image:** Neither `Bryce3DCD.iso` nor your serial number is baked into the Docker image.
 
@@ -50,9 +51,10 @@
 | **Linux** | `x86_64` | Native speed | Docker Engine + Docker Compose plugin |
 | **Windows 10 / 11** | `x86_64` | Native speed | Docker Desktop (WSL2 backend) or Docker Engine in WSL2 |
 | **macOS (Intel)** | `x86_64` | Native speed | Docker Desktop, OrbStack, or Colima |
-| **macOS (Apple Silicon)** | `arm64` | Supported (QEMU) | Uncheck *"Use Rosetta for x86_64/amd64 emulation"* in Docker Desktop Settings → General (Rosetta 2 does not translate 32-bit `i386` Wine binaries) |
+| **macOS (Apple Silicon)** | `arm64` | **Fast (Native ARM64 + FEX)** | Runs natively on `linux/arm64` via [Hangover Wine](https://github.com/AndreRH/hangover) + [FEX](https://github.com/FEX-Emu/FEX) (`FEX_X87REDUCEDPRECISION=1`) — no QEMU or Rosetta 2 needed! *(Existing Apple Silicon users upgrading from the older QEMU build: just run `git pull && docker compose up -d --build` — your registration and `projects/` stay intact.)* |
+| **Linux (`arm64`)** | `arm64` | **Fast (Native ARM64 + FEX)** | Raspberry Pi 5, ARM64 servers/laptops, Windows-on-ARM (WSL2) |
 
-> **Performance:** On `x86_64` systems, Wine executes 32-bit instructions natively on your CPU (no CPU emulation). Cold first boot takes ~16 seconds, restarts take ~2–4 seconds, and a default fractal terrain renders in ~1 second.
+> **Performance:** On `x86_64`, Wine executes 32-bit instructions natively on your CPU. On `arm64` (Apple Silicon M1–M4, ARM64 Linux), the entire Linux/X11/VNC/Wine stack runs natively on ARM64 and **FEX** JIT-translates Bryce 3D's 1997 x86/x87 math with reduced-precision x87 enabled (~15× faster renders than QEMU/Rosetta). *(If you're on Apple Silicon and prefer a standalone native macOS `.app` without Docker, check out [highda/bryce-macos-installer](https://github.com/highda/bryce-macos-installer), which pioneered this Hangover + FEX setup for Bryce 3D!)*
 
 ---
 
@@ -66,7 +68,7 @@
 <summary>Need to install Docker first? Click here for Windows, macOS, and Linux steps</summary>
 
 - **Windows 10/11:** Install [Docker Desktop for Windows](https://www.docker.com/products/docker-desktop/) with the **WSL 2** backend enabled, start it, and verify `docker compose version` in PowerShell.
-- **macOS:** Install [Docker Desktop for Mac](https://www.docker.com/products/docker-desktop/). On Apple Silicon (M1–M4), disable *"Use Rosetta for x86_64/amd64 emulation"* under **Settings → General**, then click **Apply & Restart**.
+- **macOS:** Install [Docker Desktop for Mac](https://www.docker.com/products/docker-desktop/) (or OrbStack / Colima). Works natively on both Intel (`amd64`) and Apple Silicon (`arm64`) with no special settings required.
 - **Linux (Ubuntu/Debian):**
   ```bash
   curl -fsSL https://get.docker.com | sh
@@ -194,7 +196,7 @@ docker compose down -v --rmi local
 ```bash
 docker build -t brycedock .
 
-docker run -d --name brycedock --platform linux/amd64 \
+docker run -d --name brycedock \
   -p 6080:6080 \
   --shm-size=512m \
   -e RESOLUTION=640x480 \
@@ -211,7 +213,7 @@ docker run -d --name brycedock --platform linux/amd64 \
 ```powershell
 docker build -t brycedock .
 
-docker run -d --name brycedock --platform linux/amd64 `
+docker run -d --name brycedock `
   -p 6080:6080 `
   --shm-size=512m `
   -e RESOLUTION=640x480 `
@@ -248,13 +250,14 @@ Set any of these variables in `.env` or under `environment:` in `docker-compose.
 ```text
 Browser (http://localhost:6080)
   └── noVNC + websockify (:6080)
-        └── rfb_click_proxy.py (127.0.0.1:5901)  ← fixes fast-CPU Mac-style preset popup clicks
+        └── rfb_click_proxy.py (127.0.0.1:5901)  ← preset popup clicks, focus recovery, Cmd+Z / non-Latin Ctrl+Z
               └── TigerVNC Xvnc (:5900 / X11 :0) + Openbox
-                    └── Wine 32-bit (Win98 prefix + Mesa i386 OpenGL)
+                    └── Wine 32-bit (amd64) / Hangover Wine WoW64 + FEX (arm64)
                           └── Bryce 3D.exe (unpacked on first boot via bsdtar + unshieldv3)
 ```
 
-- **InstallShield 3 extraction:** `Dockerfile` compiles `unshieldv3` in a builder stage so `entrypoint.sh` extracts `data.1` and the CD asset libraries cleanly without running the 16-bit `SETUP.EXE`.
+- **InstallShield 3 extraction:** `Dockerfile` compiles `unshieldv3` natively in a builder stage so `entrypoint.sh` extracts `data.1` and the CD asset libraries cleanly without running the 16-bit `SETUP.EXE`.
+- **Multi-arch runtime:** `Dockerfile` automatically selects `runtime-amd64` (native 32-bit Wine on x86_64) or `runtime-arm64` (native ARM64 [Hangover Wine](https://github.com/AndreRH/hangover) + [FEX](https://github.com/FEX-Emu/FEX) with `FEX_X87REDUCEDPRECISION=1`).
 - **Workspace persistence:** The extracted application, CD libraries, and Wine prefix persist in the `bryce3d_data` Docker volume; your scenes and exports are bind-mounted directly to `BryceDock/projects/`.
 
 ---
@@ -263,8 +266,16 @@ Browser (http://localhost:6080)
 
 - **Port `6080` already in use:** Change `"6080:6080"` to `"6081:6080"` in `docker-compose.yml`, run `docker compose up -d`, and open `http://localhost:6081`.
 - **Cannot save into `BryceDock/projects/` on Linux:** The container runs as UID `1000`. If Docker created `projects/` as `root`, run `sudo chown -R 1000:1000 ./projects`.
-- **Apple Silicon Mac fails to launch Wine:** Uncheck *"Use Rosetta for x86_64/amd64 emulation"* in Docker Desktop **Settings → General** so Docker runs `i386` Wine via QEMU.
+- **Undo (`Ctrl+Z` / `⌘Z`):** Bryce 3D (1997) supports a **single-level Undo/Redo toggle** — pressing `Ctrl+Z` (or `⌘Z` on macOS) once undoes your last action, and pressing it a second time redoes it.
 - **Closed Bryce 3D accidentally:** Right-click the desktop background and select **Launch Bryce 3D**.
+
+---
+
+## Credits
+
+- **[highda/bryce-macos-installer](https://github.com/highda/bryce-macos-installer)** — pioneered running Bryce 3D natively on Apple Silicon via Hangover Wine + FEX (`FEX_X87REDUCEDPRECISION=1`), achieving ~15× faster renders than QEMU/Rosetta.
+- **[Hangover](https://github.com/AndreRH/hangover)** & **[FEX](https://github.com/FEX-Emu/FEX)** — ARM64 WoW64 Wine and x86/x87 JIT translation.
+- **[unshieldv3](https://github.com/wfr/unshieldv3)** — native Linux extractor for InstallShield 3 archives.
 
 ---
 

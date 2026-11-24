@@ -1,10 +1,12 @@
 # syntax=docker/dockerfile:1
 
+ARG TARGETARCH
+
 # ==============================================================================
-# Stage 1: Build unshieldv3 (extracts InstallShield 3 data.1 / data.z archives
-# natively on Linux, completely bypassing the legacy 16-bit SETUP.EXE installer)
+# Stage 1: Build unshieldv3 natively for the target architecture (amd64 / arm64)
+# Extracts InstallShield 3 data.1 archives without running the 16-bit installer
 # ==============================================================================
-FROM --platform=linux/amd64 debian:bookworm-slim AS unshieldv3-builder
+FROM debian:bookworm-slim AS unshieldv3-builder
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
         build-essential \
@@ -19,14 +21,13 @@ RUN git clone --depth 1 https://github.com/wfr/unshieldv3.git /src/unshieldv3 \
     && cmake --install /src/unshieldv3/build
 
 # ==============================================================================
-# Stage 2: Runtime image (Wine 32-bit + TigerVNC X11 + Openbox + noVNC)
+# Stage 2: Shared X11 + TigerVNC + Openbox + noVNC runtime base
 # ==============================================================================
-FROM --platform=linux/amd64 debian:bookworm-slim
+FROM debian:bookworm-slim AS runtime-base
 
 ENV DEBIAN_FRONTEND=noninteractive \
     DISPLAY=:0 \
     RESOLUTION=640x480 \
-    WINEARCH=win32 \
     WINEPREFIX=/data/wine \
     WINEDEBUG=-all \
     NOVNC_PORT=6080 \
@@ -35,9 +36,7 @@ ENV DEBIAN_FRONTEND=noninteractive \
     BRYCE_ISO_PATH=/iso/Bryce3DCD.iso \
     BRYCE_ISO_URL=""
 
-# Enable 32-bit architecture for Wine32 (Bryce 3D is a 32-bit Win95/NT4 app)
-RUN dpkg --add-architecture i386 \
-    && apt-get update \
+RUN apt-get update \
     && apt-get install -y --no-install-recommends \
         ca-certificates \
         curl \
@@ -45,8 +44,6 @@ RUN dpkg --add-architecture i386 \
         fonts-dejavu-core \
         fonts-liberation \
         libarchive-tools \
-        libgl1:i386 \
-        libgl1-mesa-dri:i386 \
         novnc \
         openbox \
         procps \
@@ -54,12 +51,66 @@ RUN dpkg --add-architecture i386 \
         tigervnc-standalone-server \
         tigervnc-tools \
         websockify \
-        wine \
-        wine32:i386 \
         x11-xserver-utils \
         xdotool \
         xterm \
     && rm -rf /var/lib/apt/lists/*
+
+# ==============================================================================
+# Stage 2a (amd64 / x86_64): Native 32-bit Wine (zero CPU emulation)
+# ==============================================================================
+FROM runtime-base AS runtime-amd64
+
+ENV WINEARCH=win32
+
+RUN dpkg --add-architecture i386 \
+    && apt-get update \
+    && apt-get install -y --no-install-recommends \
+        libgl1:i386 \
+        libgl1-mesa-dri:i386 \
+        wine \
+        wine32:i386 \
+    && rm -rf /var/lib/apt/lists/*
+
+# ==============================================================================
+# Stage 2b (arm64 / Apple Silicon): Native ARM64 Hangover Wine (WoW64) + FEX
+# Translates Bryce 3D's 32-bit x86 + x87 FP code ~15x faster than QEMU/Rosetta
+# (technique pioneered for Bryce 3D by highda/bryce-macos-installer)
+# ==============================================================================
+FROM runtime-base AS runtime-arm64
+
+ARG HANGOVER_VERSION=11.16
+ARG HANGOVER_SHA256=dd7373202a168b7200cc36627a25b588511f3783756c2661bf4c022be8380aa8
+
+ENV HODLL=libwow64fex.dll \
+    FEX_X87REDUCEDPRECISION=1 \
+    WINEDLLOVERRIDES="mscoree=;mshtml=;winemenubuilder.exe=d"
+
+RUN curl -fsSL -o /tmp/hangover.tar \
+        "https://github.com/AndreRH/hangover/releases/download/hangover-${HANGOVER_VERSION}/hangover_${HANGOVER_VERSION}_debian12_bookworm_arm64.tar" \
+    && echo "${HANGOVER_SHA256}  /tmp/hangover.tar" | sha256sum -c - \
+    && mkdir -p /tmp/hangover \
+    && tar -xf /tmp/hangover.tar -C /tmp/hangover \
+    && apt-get update \
+    && apt-get install -y --no-install-recommends \
+        /tmp/hangover/*.deb \
+        libfontconfig1 \
+        libfreetype6 \
+        libgl1 \
+        libgl1-mesa-dri \
+        libxcomposite1 \
+        libxcursor1 \
+        libxfixes3 \
+        libxi6 \
+        libxinerama1 \
+        libxrandr2 \
+        libxrender1 \
+    && rm -rf /tmp/hangover /tmp/hangover.tar /var/lib/apt/lists/*
+
+# ==============================================================================
+# Stage 3: Final image (automatically selects runtime-amd64 or runtime-arm64)
+# ==============================================================================
+FROM runtime-${TARGETARCH} AS final
 
 # Copy compiled InstallShield 3 unpacker
 COPY --from=unshieldv3-builder /usr/local/bin/unshieldv3 /usr/local/bin/unshieldv3

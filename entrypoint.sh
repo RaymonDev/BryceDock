@@ -6,6 +6,11 @@ CD_DIR="/data/cd"
 WINE_DIR="${WINEPREFIX:-/data/wine}"
 ISO_FILE="${BRYCE_ISO_PATH:-/iso/Bryce3DCD.iso}"
 
+IS_ARM64=0
+case "$(uname -m)" in
+    aarch64|arm64) IS_ARM64=1 ;;
+esac
+
 log() {
     echo "[brycedock] $*"
 }
@@ -81,12 +86,17 @@ install_from_iso() {
 }
 
 # ------------------------------------------------------------------------------
-# 2. Initialize 32-bit Wine prefix and map drives / file associations
+# 2. Initialize Wine prefix and map drives / file associations
 # ------------------------------------------------------------------------------
 init_wine_prefix() {
-    log "Initializing 32-bit Wine prefix at ${WINE_DIR}..."
     mkdir -p "$WINE_DIR"
-    WINEARCH=win32 WINEPREFIX="$WINE_DIR" wineboot --init
+    if [ "$IS_ARM64" -eq 1 ]; then
+        log "Initializing ARM64 Hangover Wine (WoW64 + FEX) prefix at ${WINE_DIR}..."
+        WINEPREFIX="$WINE_DIR" wineboot --init
+    else
+        log "Initializing 32-bit Wine prefix at ${WINE_DIR}..."
+        WINEARCH=win32 WINEPREFIX="$WINE_DIR" wineboot --init
+    fi
     wineserver -w
 
     # Link Bryce 3D inside C:\Bryce3D and map D: (CD content) and E: (/workspace)
@@ -97,8 +107,36 @@ init_wine_prefix() {
     ln -sfn "/workspace" "$BRYCE_DIR/Projects"
     ln -sfn "$CD_DIR" "$BRYCE_DIR/CD_Content"
 
-    # Configure Windows 98 mode (closest to Bryce 3D's 1997 Win95/NT4 target), drives, and .br3 association
-    cat > /tmp/bryce_setup.reg <<'EOF'
+    # Configure Wine version (Win98 on x86_64 win32; WinXP + GrabPointer=N on ARM64 WoW64),
+    # drive types, and .br3 file association
+    if [ "$IS_ARM64" -eq 1 ]; then
+        cat > /tmp/bryce_setup.reg <<'EOF'
+Windows Registry Editor Version 5.00
+
+[HKEY_CURRENT_USER\Software\Wine]
+"Version"="winxp"
+
+[HKEY_CURRENT_USER\Software\Wine\X11 Driver]
+"GrabPointer"="N"
+
+[HKEY_LOCAL_MACHINE\Software\Wine\Drives]
+"d:"="cdrom"
+"e:"="hd"
+
+[HKEY_CLASSES_ROOT\.br3]
+@="Bryce3Dfile"
+
+[HKEY_CLASSES_ROOT\Bryce3Dfile]
+@="Bryce3D File"
+
+[HKEY_CLASSES_ROOT\Bryce3Dfile\DefaultIcon]
+@="C:\\Bryce3D\\Bryce 3D.exe,0"
+
+[HKEY_CLASSES_ROOT\Bryce3Dfile\Shell\open\command]
+@="\"C:\\Bryce3D\\Bryce 3D.exe\" \"%1\""
+EOF
+    else
+        cat > /tmp/bryce_setup.reg <<'EOF'
 Windows Registry Editor Version 5.00
 
 [HKEY_CURRENT_USER\Software\Wine]
@@ -120,6 +158,7 @@ Windows Registry Editor Version 5.00
 [HKEY_CLASSES_ROOT\Bryce3Dfile\Shell\open\command]
 @="\"C:\\Bryce3D\\Bryce 3D.exe\" \"%1\""
 EOF
+    fi
     WINEPREFIX="$WINE_DIR" wine regedit /tmp/bryce_setup.reg
     wineserver -w
     rm -f /tmp/bryce_setup.reg
@@ -215,11 +254,26 @@ fi
 
 start_display
 
+# Seamlessly rebuild only the Wine prefix if switching container architectures
+# (e.g. Apple Silicon upgrading from QEMU amd64 win32 to native arm64 Hangover WoW64).
+# Extracted Bryce 3D files, registration (MetaImage.dll), CD libraries, and /workspace stay intact.
+if [ "$IS_ARM64" -eq 1 ] && [ -f "$WINE_DIR/system.reg" ] && grep -q '^#arch=win32' "$WINE_DIR/system.reg"; then
+    log "Detected legacy 32-bit x86 Wine prefix on ARM64; rebuilding prefix for native Hangover + FEX..."
+    rm -rf "$WINE_DIR"
+elif [ "$IS_ARM64" -eq 0 ] && [ -f "$WINE_DIR/system.reg" ] && grep -q '^#arch=win64' "$WINE_DIR/system.reg"; then
+    log "Detected 64-bit Wine prefix on x86_64; rebuilding 32-bit Wine prefix..."
+    rm -rf "$WINE_DIR"
+fi
+
 if [ ! -f "$WINE_DIR/.bryce_initialized" ]; then
     init_wine_prefix
 fi
 
 sync_workspace_links
+
+if [ "$IS_ARM64" -eq 1 ]; then
+    log "Runtime: Native ARM64 Hangover Wine (WoW64) + FEX (FEX_X87REDUCEDPRECISION=${FEX_X87REDUCEDPRECISION:-1})"
+fi
 
 log "=================================================================="
 log " Bryce 3D is ready! Open http://localhost:${NOVNC_PORT} in your browser."

@@ -3,7 +3,6 @@ services:
     build: .
     image: brycedock:latest
     container_name: brycedock
-    platform: linux/amd64
     ports:
       - "6080:6080"
       # Optional: expose raw VNC for native VNC clients
